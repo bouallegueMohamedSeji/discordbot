@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  music-bot:
+    build: .
+    container_name: music-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    # No ports needed — bot connects outbound to Discord
