@@ -106,6 +106,17 @@ class PlayerView(discord.ui.View):
         if vc and vc.is_connected():
             if vc.is_playing() or vc.is_paused():
                 vc.stop()
+
+            # Resolve if URL expired or missing
+            if not prev.is_resolved:
+                ok = await prev.resolve()
+                if not ok:
+                    await interaction.response.send_message(
+                        embed=embed_builders.error_embed(f"Couldn't reload **{prev.title}** — skipping."),
+                        ephemeral=True,
+                    )
+                    return
+
             source = prev.create_source(state.volume)
             vc.play(source, after=lambda _: self.cog._after_song(self.guild_id))
 
