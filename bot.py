@@ -59,14 +59,32 @@ async def on_guild_join(guild: discord.Guild):
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error):
     """Global slash command error handler."""
-    # Unwrap the wrapper to get the real exception
     original = getattr(error, "original", error)
-    msg = f"Something went wrong: `{original}`"
 
-    if interaction.response.is_done():
-        await interaction.followup.send(msg, ephemeral=True)
-    else:
-        await interaction.response.send_message(msg, ephemeral=True)
+    # Build a useful message — always show type name even if message is empty
+    err_type = type(original).__name__
+    err_msg  = str(original).strip()
+    detail   = f"{err_type}: {err_msg}" if err_msg else err_type
+
+    # Friendly messages for common Discord errors
+    if isinstance(original, discord.Forbidden):
+        detail = "I don't have permission to do that."
+    elif isinstance(original, discord.NotFound):
+        detail = "Something was not found (message may have been deleted)."
+
+    embed = discord.Embed(
+        description=f"❌  {detail}",
+        color=0xED4245,
+    )
+
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        else:
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+    except Exception:
+        pass  # If we can't respond, silently ignore
+
 
 
 # ── Startup ───────────────────────────────────────────────────────────────────

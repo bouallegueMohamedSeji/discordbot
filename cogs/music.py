@@ -18,10 +18,27 @@ INACTIVITY_TIMEOUT = 300  # seconds (5 minutes)
 
 
 def _is_playlist_url(query: str) -> bool:
-    """Return True if the query looks like a playlist URL (YouTube or other)."""
+    """
+    Returns True ONLY for genuine playlist pages.
+    Single YouTube videos that happen to have &list= in the URL (Mixes, autoplay)
+    are treated as single tracks — the user wants just that video.
+    """
     if not query.startswith(("http://", "https://")):
         return False
-    return "list=" in query or "/playlist" in query or "/sets/" in query  # YouTube / SoundCloud
+
+    # Single YouTube video — always play just that video, ignore any list= param
+    if "youtube.com/watch?v=" in query or "youtu.be/" in query:
+        return False
+
+    # Genuine YouTube playlist page (URL contains /playlist)
+    if "youtube.com/playlist" in query:
+        return True
+
+    # SoundCloud sets
+    if "/sets/" in query:
+        return True
+
+    return False
 
 
 class Music(commands.Cog):
@@ -185,22 +202,28 @@ class Music(commands.Cog):
             state = get_state(interaction.guild_id)
             added = 0
 
-            for song in songs:
-                if not (vc.is_playing() or vc.is_paused()) and state.current is None:
-                    # Play the first track immediately
-                    state.current = song
-                    try:
-                        source = song.create_source(state.volume)
-                        vc.play(source, after=lambda _: self._after_song(interaction.guild_id))
-                        np_embed = embeds.now_playing_embed(song, state.volume, state.loop_mode)
-                        view = PlayerView(self, interaction.guild_id)
-                        msg = await interaction.followup.send(embed=np_embed, view=view)
-                        state.np_message = msg
-                    except discord.ClientException:
-                        state.current = None
-                else:
-                    state.enqueue(song)
-                added += 1
+        for song in songs:
+            if not (vc.is_playing() or vc.is_paused()) and state.current is None:
+                # Ensure the first song is resolved before playing
+                if not song.is_resolved:
+                    ok = await song.resolve()
+                    if not ok:
+                        continue  # First song failed to resolve — try next
+                state.current = song
+                try:
+                    source = song.create_source(state.volume)
+                    vc.play(source, after=lambda _: self._after_song(interaction.guild_id))
+                    np_embed = embeds.now_playing_embed(song, state.volume, state.loop_mode)
+                    view = PlayerView(self, interaction.guild_id)
+                    msg = await interaction.followup.send(embed=np_embed, view=view)
+                    state.np_message = msg
+                except Exception as e:
+                    print(f"[playlist] Failed to start first song: {e}")
+                    state.current = None
+                    continue
+            else:
+                state.enqueue(song)
+            added += 1
 
             await interaction.followup.send(
                 embed=embeds.success_embed(
