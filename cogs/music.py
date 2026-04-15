@@ -202,28 +202,28 @@ class Music(commands.Cog):
             state = get_state(interaction.guild_id)
             added = 0
 
-        for song in songs:
-            if not (vc.is_playing() or vc.is_paused()) and state.current is None:
-                # Ensure the first song is resolved before playing
-                if not song.is_resolved:
-                    ok = await song.resolve()
-                    if not ok:
-                        continue  # First song failed to resolve — try next
-                state.current = song
-                try:
-                    source = song.create_source(state.volume)
-                    vc.play(source, after=lambda _: self._after_song(interaction.guild_id))
-                    np_embed = embeds.now_playing_embed(song, state.volume, state.loop_mode)
-                    view = PlayerView(self, interaction.guild_id)
-                    msg = await interaction.followup.send(embed=np_embed, view=view)
-                    state.np_message = msg
-                except Exception as e:
-                    print(f"[playlist] Failed to start first song: {e}")
-                    state.current = None
-                    continue
-            else:
-                state.enqueue(song)
-            added += 1
+            for song in songs:
+                if not (vc.is_playing() or vc.is_paused()) and state.current is None:
+                    # Ensure the first song is resolved before playing
+                    if not song.is_resolved:
+                        ok = await song.resolve()
+                        if not ok:
+                            continue  # First song failed to resolve — try next
+                    state.current = song
+                    try:
+                        source = song.create_source(state.volume)
+                        vc.play(source, after=lambda _: self._after_song(interaction.guild_id))
+                        np_embed = embeds.now_playing_embed(song, state.volume, state.loop_mode)
+                        view = PlayerView(self, interaction.guild_id)
+                        msg = await interaction.followup.send(embed=np_embed, view=view)
+                        state.np_message = msg
+                    except Exception as e:
+                        print(f"[playlist] Failed to start first song: {e}")
+                        state.current = None
+                        continue
+                else:
+                    state.enqueue(song)
+                added += 1
 
             await interaction.followup.send(
                 embed=embeds.success_embed(
