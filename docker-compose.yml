@@ -1,12 +1,32 @@
 version: "3.9"
 
+# ── Shared network ────────────────────────────────────────────────────────────
+# Uses your server's existing shared Docker network.
+# Create it once if it doesn't exist yet:
+#   docker network create shared
+# Change "shared" below to match your actual network name.
+networks:
+  shared:
+    external: true
+    name: shared
+
+# ── Music Bot service ─────────────────────────────────────────────────────────
 services:
   music-bot:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: music-bot:latest        # Tagged image — easy to reference & remove
     container_name: music-bot
-    restart: unless-stopped
+    restart: unless-stopped        # Auto-restart on crash or reboot
     env_file:
-      - .env
-    volumes:
-      - ./logs:/app/logs
-    # No ports needed — bot connects outbound to Discord
+      - .env                       # Token loaded from .env — never baked into image
+
+    networks:
+      - shared                     # Joins your shared server network
+
+    # No ports needed — bot dials out to Discord, nothing listens inbound
+    # No volumes needed — bot is fully stateless, nothing to persist
+
+    labels:
+      description: "Discord Music Bot (s.i.m.p)"
