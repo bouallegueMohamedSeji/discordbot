@@ -25,7 +25,8 @@ YDL_OPTIONS = {
     "fragment_retries": 3,
     "extractor_args": {
         "youtube": {
-            "player_client": ["web", "android", "ios"],
+            # android_music is least rate-limited and bypasses most bot checks
+            "player_client": ["android_music", "android", "web", "ios"],
         }
     },
 }
@@ -117,8 +118,13 @@ async def _run(fn) -> dict | None:
 
 async def _fetch_single(query: str) -> dict | None:
     """Fetch full yt-dlp info for a single track (URL or search query)."""
+
+    # For YouTube watch URLs, strip playlist/mix parameters so yt-dlp
+    # treats it as a clean single-video request (avoids bot-detection triggers)
+    clean = _clean_youtube_url(query)
+
     def _go():
-        search = query if _is_url(query) else f"ytsearch:{query}"
+        search = clean if _is_url(clean) else f"ytsearch:{clean}"
         with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
             data = ydl.extract_info(search, download=False)
         if not data:
@@ -129,6 +135,24 @@ async def _fetch_single(query: str) -> dict | None:
         return data
 
     return await _run(_go)
+
+
+def _clean_youtube_url(url: str) -> str:
+    """
+    For YouTube watch URLs, remove list= / index= / start_radio= parameters.
+    e.g. youtube.com/watch?v=ABC&list=RDABC  →  youtube.com/watch?v=ABC
+    This prevents YouTube from treating a single-video request as a Mix.
+    """
+    if not ("youtube.com/watch" in url or "youtu.be/" in url):
+        return url
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query, keep_blank_values=True)
+    # Keep only the video ID — strip all playlist/mix params
+    for key in ("list", "index", "start_radio", "pp", "si"):
+        params.pop(key, None)
+    clean_query = urlencode({k: v[0] for k, v in params.items()})
+    return urlunparse(parsed._replace(query=clean_query))
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
