@@ -236,7 +236,11 @@ class Music(commands.Cog):
         data = await search_youtube(query)
         if not data:
             await interaction.followup.send(
-                embed=embeds.error_embed(f"Couldn't find anything for: **{query}**")
+                embed=embeds.error_embed(
+                    f"Couldn't find anything for: **{query}**\n\n"
+                    f"-# YouTube may be rate-limiting this bot. Try again in a moment, "
+                    f"or try a different search term."
+                )
             )
             return
 
